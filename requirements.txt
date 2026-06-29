@@ -1,0 +1,11 @@
+google-adk
+google-generativeai
+streamlit
+chromadb
+requests
+beautifulsoup4
+newspaper3k
+python-dotenv
+pydantic
+lxml
+httpx
