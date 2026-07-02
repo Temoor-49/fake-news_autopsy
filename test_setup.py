@@ -1,17 +1,16 @@
 # test_setup.py
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
-# Load your API keys from .env
 load_dotenv()
 
-# Test Gemini connection
-api_key = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-model = genai.GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("Say hello in one sentence.")
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Say hello in one sentence."
+)
 
 print("✅ Gemini connected!")
 print("Response:", response.text)

@@ -1,32 +1,40 @@
 # tools/news_tool.py
-# Searches NewsAPI for recent articles about a claim or topic
-
 import os
 import requests
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
 
 load_dotenv()
 
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 
-def search_news(query: str, days_back: int = 30) -> list[dict]:
+def simplify_query(claim: str, max_words: int = 5) -> str:
+    """
+    Long sentence-style claims often return 0 results on NewsAPI
+    because it does literal phrase matching. This trims the claim
+    down to its most important keywords for a better match.
+    """
+    # Remove common filler words that don't help search matching
+    stopwords = {"is", "are", "the", "a", "an", "of", "in", "on", "to", "and", "that", "this"}
+
+    words = claim.split()
+    keywords = [w for w in words if w.lower().strip(".,?!") not in stopwords]
+
+    return " ".join(keywords[:max_words])
+
+
+def search_news(query: str) -> list[dict]:
     """
     Searches NewsAPI for articles related to the query.
-    Returns list of articles with title, source, date, url, description.
+    Automatically simplifies long claim-style queries for better matching.
     """
 
-    # Calculate date range
-    to_date = datetime.now().strftime("%Y-%m-%d")
-    from_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    simplified = simplify_query(query)
 
     url = "https://newsapi.org/v2/everything"
 
     params = {
-        "q": query,
-        "from": from_date,
-        "to": to_date,
+        "q": simplified,
         "sortBy": "relevancy",
         "language": "en",
         "pageSize": 10,
@@ -48,6 +56,24 @@ def search_news(query: str, days_back: int = 30) -> list[dict]:
                 "description": article.get("description", "")
             })
 
+        # Fallback: if simplified query still returns nothing,
+        # try an even shorter 2-word version as a last resort
+        if not articles:
+            shorter = simplify_query(query, max_words=2)
+            if shorter != simplified:
+                params["q"] = shorter
+                response = requests.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                for article in data.get("articles", []):
+                    articles.append({
+                        "title": article.get("title", ""),
+                        "source": article.get("source", {}).get("name", ""),
+                        "published_at": article.get("publishedAt", ""),
+                        "url": article.get("url", ""),
+                        "description": article.get("description", "")
+                    })
+
         return articles
 
     except Exception as e:
@@ -55,10 +81,13 @@ def search_news(query: str, days_back: int = 30) -> list[dict]:
         return []
 
 
-# Quick test
 if __name__ == "__main__":
-    articles = search_news("covid vaccine side effects")
+    test_claim = "COVID-19 vaccines contain microchips"
+    print(f"Simplified query: '{simplify_query(test_claim)}'\n")
+
+    articles = search_news(test_claim)
+    print(f"Found {len(articles)} articles\n")
     for a in articles:
-        print(f"\nTitle: {a['title']}")
+        print(f"Title: {a['title']}")
         print(f"Source: {a['source']}")
-        print(f"Date: {a['published_at']}")
+        print(f"Date: {a['published_at']}\n")

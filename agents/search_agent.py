@@ -1,20 +1,20 @@
 # agents/search_agent.py
-# The Search Agent — first responder in the investigation pipeline
-# It takes a claim or URL and gathers all relevant information from the web
+# Search Agent — investigates a news claim by searching the web
 
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 from tools.search_tool import search_web
 from tools.article_fetcher import fetch_article
 from tools.news_tool import search_news
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Initialize new google.genai client
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
 
 def run_search_agent(claim: str) -> dict:
@@ -24,8 +24,6 @@ def run_search_agent(claim: str) -> dict:
     2. Searching NewsAPI for news coverage
     3. Fetching content from top results
     4. Using Gemini to summarize what was found
-
-    Returns a structured investigation report.
     """
 
     print(f"\n🔍 Search Agent investigating: {claim}")
@@ -37,7 +35,8 @@ def run_search_agent(claim: str) -> dict:
 
     # Step 2 — Search news sources
     print("📰 Searching news sources...")
-    news_results = search_news(claim, days_back=60)
+    news_results = search_news(claim)
+    print(f"DEBUG: NewsAPI returned {len(news_results)} articles")
 
     # Step 3 — Fetch full content from top 3 web results
     print("📄 Fetching article content...")
@@ -64,8 +63,6 @@ def run_search_agent(claim: str) -> dict:
     # Step 5 — Ask Gemini to analyze what was found
     print("🤖 Gemini analyzing findings...")
 
-    model = genai.GenerativeModel("gemini-2.5-flash")
-
     prompt = f"""
     You are the Search Agent in a Fake News Investigation system.
     Your job is to analyze search results and summarize key findings.
@@ -82,7 +79,10 @@ def run_search_agent(claim: str) -> dict:
     Be factual and concise.
     """
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
 
     # Return structured result
     return {
