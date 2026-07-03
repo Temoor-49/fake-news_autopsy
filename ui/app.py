@@ -533,19 +533,35 @@ def main():
                     unsafe_allow_html=True
                 )
 
-                st.session_state.last_result = result
-                st.session_state.last_claim  = claim.strip()
+                # ─── FIX 2: Store result with validation ───
+                if result and isinstance(result, dict) and result.get("overall_status") == "complete":
+                    st.session_state.last_result = result
+                    st.session_state.last_claim = claim.strip()
+                else:
+                    error_msg = result.get("error", "Investigation failed") if result else "No result returned"
+                    st.error(f"❌ {error_msg}")
 
             except Exception as e:
                 st.error(f"Investigation failed: {str(e)}")
                 return
 
     # ── DISPLAY RESULTS ──────────────────────────────────────
+    # ─── FIX 1: Results display with guards ───
     if st.session_state.last_result:
-        result           = st.session_state.last_result
-        verdict_data     = result.get("verdict_results", {}).get("verdict_data", {})
-        credibility_data = result.get("credibility_results", {})
-        timeline_data    = result.get("timeline_results", {})
+        result = st.session_state.last_result
+
+        # Guard against None or incomplete results
+        if not result or not isinstance(result, dict):
+            st.warning("Investigation returned no results. Please try again.")
+            st.stop()
+
+        if result.get("overall_status") not in ["complete"]:
+            st.warning(f"Investigation incomplete: {result.get('error', 'Unknown error')}")
+            st.stop()
+
+        verdict_data     = (result.get("verdict_results") or {}).get("verdict_data", {})
+        credibility_data = result.get("credibility_results") or {}
+        timeline_data    = result.get("timeline_results") or {}
         agent_log        = result.get("agent_log", [])
 
         st.markdown("---")
