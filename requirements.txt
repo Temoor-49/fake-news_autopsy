@@ -1,7 +1,7 @@
 google-genai
 google-adk
 streamlit
-chromadb
+chromadb==0.4.24
 sentence-transformers
 requests
 beautifulsoup4
@@ -12,3 +12,4 @@ httpx
 lxml
 mcp
 watchdog
+protobuf==4.25.3
