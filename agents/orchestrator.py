@@ -1,7 +1,6 @@
 # agents/orchestrator.py
-# Orchestrator Agent — the central coordinator of the Fake News Autopsy system
-# This is the single entry point. It calls Search -> Credibility -> Timeline -> Verdict
-# in sequence, handles failures gracefully, and returns one unified investigation report.
+# Orchestrator Agent — coordinates the full investigation pipeline
+# Now includes ChromaDB memory (cache) and security validation
 
 import os
 import sys
@@ -12,25 +11,21 @@ from agents.search_agent import run_search_agent
 from agents.credibility_agent import run_credibility_agent
 from agents.timeline_agent import run_timeline_agent
 from agents.verdict_agent import run_verdict_agent
+from memory.investigation_memory import InvestigationMemory
+from utils.security import sanitizer, rate_limiter, log_investigation, log_blocked_request
+
+# Shared memory instance — persists across investigations in same session
+memory = InvestigationMemory()
 
 
 class InvestigationOrchestrator:
     """
     Coordinates the full multi-agent investigation pipeline.
-
-    Pipeline order matters:
-    1. Search Agent    -> gathers raw evidence (web + news + articles)
-    2. Credibility Agent -> scores trustworthiness of what Search found
-    3. Timeline Agent  -> traces spread pattern of what Search found
-    4. Verdict Agent   -> synthesizes everything into final judgment
-
-    Credibility and Timeline both depend on Search Agent output,
-    but are independent of each other (could run in parallel later).
-    Verdict depends on ALL THREE prior agents.
+    Now with memory cache and security features.
     """
 
     def __init__(self):
-        self.agent_log = []  # tracks which agents ran and how long they took
+        self.agent_log = []
 
     def _log_step(self, agent_name: str, duration: float, status: str):
         self.agent_log.append({
@@ -39,12 +34,14 @@ class InvestigationOrchestrator:
             "status": status
         })
 
-    def investigate(self, claim: str) -> dict:
+    def investigate(self, claim: str, session_id: str = "default") -> dict:
         """
-        Runs the full investigation pipeline on a claim.
-        Returns a unified report with results from all agents + final verdict.
-        Handles partial failures gracefully — if one agent fails,
-        downstream agents still attempt to run with whatever data exists.
+        Runs the full investigation pipeline with:
+        - Input sanitization
+        - Rate limiting
+        - Memory cache check (returns instantly if similar claim found)
+        - Full pipeline if no cache hit
+        - Stores result in memory after completion
         """
 
         print(f"\n{'='*60}")
@@ -52,8 +49,49 @@ class InvestigationOrchestrator:
         print(f"CLAIM: {claim}")
         print(f"{'='*60}")
 
+        # ── SECURITY: Sanitize input ──────────────────────────
+        is_valid, cleaned_claim, error_msg = sanitizer.sanitize(claim)
+        if not is_valid:
+            log_blocked_request(f"sanitization: {error_msg}", claim)
+            return {
+                "claim": claim,
+                "error": error_msg,
+                "overall_status": "blocked_sanitization"
+            }
+
+        # ── SECURITY: Rate limiting ───────────────────────────
+        allowed, rate_msg = rate_limiter.is_allowed(session_id)
+        if not allowed:
+            log_blocked_request(f"rate_limit", claim)
+            return {
+                "claim": cleaned_claim,
+                "error": rate_msg,
+                "overall_status": "blocked_rate_limit"
+            }
+
+        # ── MEMORY: Check cache for similar past investigation ─
+        print("\n🧠 Checking memory for similar past investigations...")
+        cached = memory.find_similar(cleaned_claim)
+        if cached:
+            log_investigation(
+                cleaned_claim,
+                cached["verdict_data"]["verdict"],
+                cached["verdict_data"]["confidence_score"],
+                from_cache=True
+            )
+            return {
+                "claim": cleaned_claim,
+                "from_cache": True,
+                "similarity_score": cached["similarity_score"],
+                "original_claim": cached["original_claim"],
+                "verdict_results": {"verdict_data": cached["verdict_data"]},
+                "agent_log": [{"agent": "Memory Cache", "duration_seconds": 0.1, "status": "cache_hit"}],
+                "overall_status": "complete"
+            }
+
+        # ── FULL PIPELINE ─────────────────────────────────────
         report = {
-            "claim": claim,
+            "claim": cleaned_claim,
             "search_results": None,
             "credibility_results": None,
             "timeline_results": None,
@@ -62,20 +100,19 @@ class InvestigationOrchestrator:
             "overall_status": "in_progress"
         }
 
-        # --- STEP 1: Search Agent ---
+        # Step 1 — Search Agent
         try:
             start = time.time()
-            search_results = run_search_agent(claim)
+            search_results = run_search_agent(cleaned_claim)
             self._log_step("Search Agent", time.time() - start, "success")
             report["search_results"] = search_results
         except Exception as e:
             self._log_step("Search Agent", 0, f"failed: {str(e)}")
             report["overall_status"] = "failed"
             report["agent_log"] = self.agent_log
-            print(f"❌ Search Agent failed — cannot continue without base evidence: {e}")
-            return report  # Can't proceed without search results
+            return report
 
-        # --- STEP 2: Credibility Agent ---
+        # Step 2 — Credibility Agent
         try:
             start = time.time()
             credibility_results = run_credibility_agent(search_results)
@@ -83,17 +120,16 @@ class InvestigationOrchestrator:
             report["credibility_results"] = credibility_results
         except Exception as e:
             self._log_step("Credibility Agent", 0, f"failed: {str(e)}")
-            print(f"⚠️ Credibility Agent failed, continuing with limited data: {e}")
             credibility_results = {
-                "claim": claim,
+                "claim": cleaned_claim,
                 "domain_scores": [],
                 "average_domain_score": 0,
-                "credibility_analysis": "Credibility analysis unavailable due to an error.",
+                "credibility_analysis": "Credibility analysis unavailable.",
                 "status": "failed"
             }
             report["credibility_results"] = credibility_results
 
-        # --- STEP 3: Timeline Agent ---
+        # Step 3 — Timeline Agent
         try:
             start = time.time()
             timeline_results = run_timeline_agent(search_results)
@@ -101,16 +137,15 @@ class InvestigationOrchestrator:
             report["timeline_results"] = timeline_results
         except Exception as e:
             self._log_step("Timeline Agent", 0, f"failed: {str(e)}")
-            print(f"⚠️ Timeline Agent failed, continuing with limited data: {e}")
             timeline_results = {
-                "claim": claim,
+                "claim": cleaned_claim,
                 "timeline": [],
-                "timeline_analysis": "Timeline analysis unavailable due to an error.",
+                "timeline_analysis": "Timeline analysis unavailable.",
                 "status": "failed"
             }
             report["timeline_results"] = timeline_results
 
-        # --- STEP 4: Verdict Agent (needs all 3 above) ---
+        # Step 4 — Verdict Agent
         try:
             start = time.time()
             verdict_results = run_verdict_agent(search_results, credibility_results, timeline_results)
@@ -119,10 +154,19 @@ class InvestigationOrchestrator:
             report["overall_status"] = "complete"
         except Exception as e:
             self._log_step("Verdict Agent", 0, f"failed: {str(e)}")
-            print(f"❌ Verdict Agent failed: {e}")
             report["overall_status"] = "failed"
 
         report["agent_log"] = self.agent_log
+
+        # ── MEMORY: Store completed investigation ─────────────
+        if report["overall_status"] == "complete":
+            memory.store_investigation(cleaned_claim, report)
+            log_investigation(
+                cleaned_claim,
+                report["verdict_results"]["verdict_data"].get("verdict", "UNVERIFIED"),
+                report["verdict_results"]["verdict_data"].get("confidence_score", 0),
+                from_cache=False
+            )
 
         print(f"\n{'='*60}")
         print(f"✅ INVESTIGATION COMPLETE — Status: {report['overall_status']}")
@@ -131,33 +175,22 @@ class InvestigationOrchestrator:
         return report
 
 
-def investigate(claim: str) -> dict:
-    """
-    Convenience function — the single entry point your UI will call.
-    Usage: result = investigate("some claim here")
-    """
+def investigate(claim: str, session_id: str = "default") -> dict:
+    """Single entry point for the full investigation pipeline."""
     orchestrator = InvestigationOrchestrator()
-    return orchestrator.investigate(claim)
+    return orchestrator.investigate(claim, session_id)
 
 
-# Test the orchestrator directly
 if __name__ == "__main__":
-    test_claim = "COVID-19 vaccines contain microchips"
-
-    result = investigate(test_claim)
-
-    print("\n" + "=" * 60)
-    print("📊 AGENT EXECUTION LOG")
-    print("=" * 60)
-    for entry in result["agent_log"]:
-        status_icon = "✅" if entry["status"] == "success" else "❌"
-        print(f"{status_icon} {entry['agent']}: {entry['duration_seconds']}s — {entry['status']}")
-
-    if result["overall_status"] == "complete":
+    # Test 1 — fresh investigation
+    print("\n🧪 TEST 1: Fresh investigation")
+    result = investigate("5G towers spread COVID-19")
+    if result.get("overall_status") == "complete":
         v = result["verdict_results"]["verdict_data"]
-        print("\n" + "=" * 60)
-        print("⚖️ FINAL VERDICT")
-        print("=" * 60)
-        print(f"VERDICT: {v['verdict']}")
-        print(f"CONFIDENCE: {v['confidence_score']}/100")
-        print(f"SUMMARY: {v['one_line_summary']}")
+        print(f"VERDICT: {v['verdict']} ({v['confidence_score']}/100)")
+
+    # Test 2 — repeat claim should hit cache
+    print("\n🧪 TEST 2: Same claim again (should hit cache)")
+    result2 = investigate("5G towers spread COVID-19")
+    print(f"From cache: {result2.get('from_cache', False)}")
+    print(f"Status: {result2.get('overall_status')}")

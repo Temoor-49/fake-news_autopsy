@@ -7,14 +7,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from google import genai
-from tools.search_tool import search_web
-from tools.article_fetcher import fetch_article
-from tools.news_tool import search_news
+from utils.config import get_secret
 
 load_dotenv()
-
-# Initialize new google.genai client
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key=get_secret("GOOGLE_API_KEY"))
 
 
 def run_search_agent(claim: str) -> dict:
@@ -36,7 +32,6 @@ def run_search_agent(claim: str) -> dict:
     # Step 2 — Search news sources
     print("📰 Searching news sources...")
     news_results = search_news(claim)
-    print(f"DEBUG: NewsAPI returned {len(news_results)} articles")
 
     # Step 3 — Fetch full content from top 3 web results
     print("📄 Fetching article content...")

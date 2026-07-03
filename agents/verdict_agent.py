@@ -8,11 +8,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from google import genai
-import json
+from utils.config import get_secret
 
 load_dotenv()
-
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key=get_secret("GOOGLE_API_KEY"))
 
 
 def run_verdict_agent(search_results: dict, credibility_results: dict, timeline_results: dict) -> dict:

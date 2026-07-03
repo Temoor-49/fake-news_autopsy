@@ -1,11 +1,10 @@
-# tools/news_tool.py
 import os
 import requests
 from dotenv import load_dotenv
+from utils.config import get_secret
 
 load_dotenv()
-
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+NEWS_API_KEY = get_secret("NEWS_API_KEY")
 
 
 def simplify_query(claim: str, max_words: int = 5) -> str:

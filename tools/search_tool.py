@@ -4,10 +4,10 @@
 import os
 import requests
 from dotenv import load_dotenv
+from utils.config import get_secret
 
 load_dotenv()
-
-SERPER_API_KEY = os.getenv("SERPER_API_KEY")
+SERPER_API_KEY = get_secret("SERPER_API_KEY")
 
 
 def search_web(query: str, num_results: int = 5) -> list[dict]:

@@ -8,11 +8,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from google import genai
-from tools.timeline_builder import build_timeline
+from utils.config import get_secret
 
 load_dotenv()
-
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key=get_secret("GOOGLE_API_KEY"))
 
 
 def run_timeline_agent(search_agent_results: dict) -> dict:
@@ -29,10 +28,6 @@ def run_timeline_agent(search_agent_results: dict) -> dict:
     claim = search_agent_results["claim"]
     news_results = search_agent_results["news_results"]
 
-    # DEBUG
-    print(f"DEBUG: news_results count = {len(news_results)}")
-    if news_results:
-        print(f"DEBUG: first article = {news_results[0]}")
 
     print(f"\n🕒 Timeline Agent tracing spread for: {claim}")
     print("-" * 50)

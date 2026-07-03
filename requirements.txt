@@ -1,12 +1,14 @@
+google-genai
 google-adk
-google-generativeai
 streamlit
 chromadb
+sentence-transformers
 requests
 beautifulsoup4
 newspaper3k
 python-dotenv
 pydantic
-lxml
 httpx
+lxml
 mcp
+watchdog
