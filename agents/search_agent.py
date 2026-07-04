@@ -1,15 +1,25 @@
 # agents/search_agent.py
 # Search Agent — investigates a news claim by searching the web
 
+# agents/search_agent.py
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Fix path for both local and Streamlit Cloud environments
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from dotenv import load_dotenv
 from google import genai
+from tools.search_tool import search_web
+from tools.article_fetcher import fetch_article
+from tools.news_tool import search_news
 from utils.config import get_secret
 
 load_dotenv()
+
 client = genai.Client(api_key=get_secret("GOOGLE_API_KEY"))
 
 

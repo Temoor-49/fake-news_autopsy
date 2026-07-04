@@ -4,10 +4,15 @@
 
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from dotenv import load_dotenv
 from google import genai
+from tools.timeline_builder import build_timeline
 from utils.config import get_secret
 
 load_dotenv()

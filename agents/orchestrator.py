@@ -5,7 +5,11 @@
 import os
 import sys
 import time
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from agents.search_agent import run_search_agent
 from agents.credibility_agent import run_credibility_agent
@@ -14,7 +18,6 @@ from agents.verdict_agent import run_verdict_agent
 from memory.investigation_memory import InvestigationMemory
 from utils.security import sanitizer, rate_limiter, log_investigation, log_blocked_request
 
-# Shared memory instance — persists across investigations in same session
 memory = InvestigationMemory()
 
 
