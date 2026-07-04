@@ -533,20 +533,40 @@ def main():
                     unsafe_allow_html=True
                 )
 
-                # ─── FIX 2: Store result with validation ───
+                # ─── UPDATED: Enhanced error visibility ───
                 if result and isinstance(result, dict) and result.get("overall_status") == "complete":
                     st.session_state.last_result = result
                     st.session_state.last_claim = claim.strip()
                 else:
-                    error_msg = result.get("error", "Investigation failed") if result else "No result returned"
-                    st.error(f"❌ {error_msg}")
+                    error_msg = result.get("error", "Unknown") if result else "No result returned"
+                    status = result.get("overall_status", "unknown") if result else "none"
+                    agent_log = result.get("agent_log", []) if result else []
+
+                    st.error(f"❌ Investigation failed — status: `{status}` — error: `{error_msg}`")
+
+                    if agent_log:
+                        st.markdown("**Agent execution log:**")
+                        for entry in agent_log:
+                            icon = "✅" if entry["status"] == "success" else "❌"
+                            st.markdown(f"{icon} `{entry['agent']}` — {entry['duration_seconds']}s — `{entry['status']}`")
+                    
+                    if result:
+                        with st.expander("Full debug info"):
+                            st.json({
+                                "overall_status": result.get("overall_status"),
+                                "error": result.get("error"),
+                                "has_search": result.get("search_results") is not None,
+                                "has_credibility": result.get("credibility_results") is not None,
+                                "has_timeline": result.get("timeline_results") is not None,
+                                "has_verdict": result.get("verdict_results") is not None,
+                                "agent_log": result.get("agent_log", [])
+                            })
 
             except Exception as e:
                 st.error(f"Investigation failed: {str(e)}")
                 return
 
     # ── DISPLAY RESULTS ──────────────────────────────────────
-    # ─── FIX 1: Results display with guards ───
     if st.session_state.last_result:
         result = st.session_state.last_result
 
