@@ -4,9 +4,9 @@ markdown# 🔬 Fake News Autopsy
 
 > Built for the Kaggle AI Agents Intensive Vibe Coding Capstone — Agents for Good track
 
-🔴 **[Live Demo →](YOUR_STREAMLIT_URL_HERE)**
+🔴 **[Live Demo →](https://fake-newsautopsy-6uxrvlnkvewghkepaaxbjp.streamlit.app/)**
 &nbsp;&nbsp;|&nbsp;&nbsp;
-📹 **[Demo Video →](YOUR_YOUTUBE_URL_HERE)**
+📹 **[Demo Video →](https://youtu.be/5UHCkMtRifc)**
 
 ---
 
@@ -76,7 +76,7 @@ User Input (claim or URL)
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOURUSERNAME/fake-news-autopsy.git
+git clone https://github.com/Temoor-49/fake-news_autopsy.git
 cd fake-news-autopsy
 
 # 2. Create virtual environment
@@ -109,5 +109,4 @@ streamlit run ui/app.py
 
 ---
 
-*Built solo in 12 days for the Kaggle AI Agents Intensive Capstone.*
 
